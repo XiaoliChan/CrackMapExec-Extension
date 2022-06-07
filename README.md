@@ -22,7 +22,7 @@ CrackMapExec extension module/protocol support
 ### Usage (development version)
 - Sys env: ubuntu 22.04
 ```
-git clone https://github.com/byt3bl33d3r/CrackMapExec
+git clone https://github.com/byt3bl33d3r/CrackMapExec.git
 cd CrackMapExec
 echo "cchardet" >> requirements.txt
 change 'impacket==0.9.24' to 'impacket' (latest version)
@@ -30,5 +30,8 @@ python3 -m venv cme-env
 source cme-env/bin/activate
 pip3 install -r requirements.txt
 cp cme/crackmapexec.py .
-python3 crackmapexec.py
+python3 crackmapexec.py (make sure it can execute)
+
+git clone https://github.com/XiaoliChan/CrackMapExec-Extension.git
+cp -r CrackMapExec-Extension/cme-* cme/protocols/
 ```
