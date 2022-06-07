@@ -18,3 +18,17 @@ CrackMapExec extension module/protocol support
   Forked from [Orange-Cyberdefense upstream](https://github.com/Orange-Cyberdefense/cme-wmi) , use impacket DCOM function instead of RPCRequester.  
   For more details: [XiaoliChan's Forked](https://github.com/XiaoliChan/CrackMapExec-WMI)  
   ![image](https://user-images.githubusercontent.com/30458572/172290474-1021ab72-fbaa-43c2-801a-ba5f8e609b1c.png)
+
+### Usage (development version)
+- Sys env: ubuntu 22.04
+```
+git clone https://github.com/byt3bl33d3r/CrackMapExec
+cd CrackMapExec
+echo "cchardet" >> requirements.txt
+change 'impacket==0.9.24' to 'impacket' (latest version)
+python3 -m venv cme-env
+source cme-env/bin/activate
+pip3 install -r requirements.txt
+cp cme/crackmapexec.py .
+python3 crackmapexec.py
+```
