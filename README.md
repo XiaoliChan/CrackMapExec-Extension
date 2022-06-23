@@ -24,6 +24,9 @@ CrackMapExec extension module/protocol support
   ![image](https://user-images.githubusercontent.com/30458572/172290474-1021ab72-fbaa-43c2-801a-ba5f8e609b1c.png)
 
 ### Usage (development version)
+
+- xfreerfp binary: [link](https://github.com/FreeRDP/FreeRDP/wiki/PreBuilds)
+
 - Sys env: ubuntu 22.04
 ```
 git clone https://github.com/byt3bl33d3r/CrackMapExec.git
