@@ -128,7 +128,7 @@ class xfreerdp(connection):
 
     def plaintext_login(self, domain, username, password):
         try:
-            connection = subprocess.Popen("xfreerdp /v:'%s' +auth-only /d:%s /u:%s /p:\"%s\""
+            connection = subprocess.Popen("xfreerdp /v:'%s' +auth-only /d:%s /u:%s /p:\"%s\" /sec:nla"
                                         " /cert-ignore" % (self.host, domain, username, password), stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             output_error = connection.stderr.read()
             output_info = connection.stdout.read()
@@ -156,7 +156,7 @@ class xfreerdp(connection):
 
     def hash_login(self, domain, username, ntlm_hash):
         try:
-            connection = subprocess.Popen("xfreerdp /v:'%s' +auth-only /d:%s /u:%s /p:'' /pth:\"%s\""
+            connection = subprocess.Popen("xfreerdp /v:'%s' +auth-only /d:%s /u:%s /p:'' /pth:\"%s\" /sec:nla"
                                         " /cert-ignore" % (self.host, domain, username, ntlm_hash), stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             output_error = connection.stderr.read()
             output_info = connection.stdout.read()
