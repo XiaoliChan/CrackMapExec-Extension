@@ -37,5 +37,9 @@ cp cme/crackmapexec.py .
 python3 crackmapexec.py (make sure it can execute)
 
 git clone https://github.com/XiaoliChan/CrackMapExec-Extension.git
-cp -r CrackMapExec-Extension/cme-* cme/protocols/
+cp -r CrackMapExec-Extension/cme-rdp/* cme/protocols/
+
+or
+
+cp -r CrackMapExec-Extension/cme-xfreerdp/* cme/protocols/
 ```
