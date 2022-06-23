@@ -25,7 +25,8 @@ CrackMapExec extension module/protocol support
 
 ### Usage (development version)
 
-- xfreerfp binary: [link](https://github.com/FreeRDP/FreeRDP/wiki/PreBuilds)
+- xfreerdp binary: [link](https://github.com/FreeRDP/FreeRDP/wiki/PreBuilds)
+- wfreerdp binary: [link](https://ci.freerdp.com/job/freerdp-nightly-windows/arch=win64,label=vs2013/)
 
 - Sys env: ubuntu 22.04
 ```
