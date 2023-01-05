@@ -6,18 +6,11 @@ from cme.logger import CMEAdapter
 import subprocess
 import sys
 
-logger.setLevel(logging.CRITICAL)
-
-try:
-    from aardwolf import logger
-    from aardwolf.commons.url import RDPConnectionURL
-    from aardwolf.commons.iosettings import RDPIOSettings
-    from aardwolf.protocol.x224.constants import SUPP_PROTOCOLS
-    from aardwolf.commons.queuedata.constants import MOUSEBUTTON, VIDEO_FORMAT
-except ImportError:
-    print("aardwolf librairy is missing, you need to install the submodule")
-    print("run the command: ")
-    exit()
+from aardwolf import logger
+from aardwolf.commons.factory import RDPConnectionFactory
+from aardwolf.commons.queuedata.constants import VIDEO_FORMAT
+from aardwolf.commons.iosettings import RDPIOSettings
+from aardwolf.protocol.x224.constants import SUPP_PROTOCOLS
 
 success_login_yes_rdp = "Authentication only, exit status 0"
 
@@ -35,7 +28,8 @@ class xfreerdp(connection):
     def __init__(self, args, db, host):
         self.iosettings = RDPIOSettings()
         self.iosettings.supported_protocols = ""
-        self.protoflags = self.protoflags = [SUPP_PROTOCOLS.RDP, SUPP_PROTOCOLS.SSL, SUPP_PROTOCOLS.SSL|SUPP_PROTOCOLS.RDP, SUPP_PROTOCOLS.SSL|SUPP_PROTOCOLS.HYBRID, SUPP_PROTOCOLS.SSL|SUPP_PROTOCOLS.HYBRID_EX]
+        self.protoflags_nla = [SUPP_PROTOCOLS.SSL|SUPP_PROTOCOLS.RDP, SUPP_PROTOCOLS.SSL, SUPP_PROTOCOLS.RDP]
+        self.protoflags = [SUPP_PROTOCOLS.SSL|SUPP_PROTOCOLS.RDP, SUPP_PROTOCOLS.SSL, SUPP_PROTOCOLS.RDP, SUPP_PROTOCOLS.SSL|SUPP_PROTOCOLS.HYBRID, SUPP_PROTOCOLS.SSL|SUPP_PROTOCOLS.HYBRID_EX]
         self.iosettings.channels = []
         self.output_filename = None
         self.domain = None
@@ -86,13 +80,12 @@ class xfreerdp(connection):
                                                                 self.nla))
 
     def create_conn_obj(self):
-        for proto in self.protoflags:
+        self.check_nla()
+        for proto in reversed(self.protoflags):
             try:
                 self.iosettings.supported_protocols = proto
-                self .url = 'rdp+ntlm-password://FAKE\\user:pass@' + self.host + ':' + str(self.args.port)
+                self.url = 'rdp+ntlm-password://FAKE\\user:pass@' + self.host + ':' + str(self.args.port)
                 asyncio.run(self.connect_rdp(self.url))
-                if str(proto) == "SUPP_PROTOCOLS.RDP" or str(proto) == "SUPP_PROTOCOLS.SSL" or str(proto) == "SUPP_PROTOCOLS.SSL|SUPP_PROTOCOLS.RDP":
-                    self.nla = False
             except OSError as e:
                 if "Errno 104" not in str(e):
                     return False
@@ -104,7 +97,6 @@ class xfreerdp(connection):
                     self.domain    = info_domain['dnsdomainname']
                     self.hostname  = info_domain['computername']
                     self.server_os = info_domain['os_guess'] + " Build " + str(info_domain['os_build'])
-
                     self.output_filename = os.path.expanduser('~/.cme/logs/{}_{}_{}'.format(self.hostname, self.host, datetime.now().strftime("%Y-%m-%d_%H%M%S")))
                     self.output_filename = self.output_filename.replace(":", "-")
                     break
@@ -113,13 +105,25 @@ class xfreerdp(connection):
             self.domain = self.args.domain
         
         if self.args.local_auth:
-            self.domain = self.args.domain
+            self.domain = self.hostname
 
         return True
 
+    def check_nla(self):
+        for proto in self.protoflags_nla:
+            try:
+                self.iosettings.supported_protocols = proto
+                self.url = 'rdp+ntlm-password://FAKE\\user:pass@' + self.host + ':' + str(self.args.port)
+                asyncio.run(self.connect_rdp(self.url))
+                if str(proto) == "SUPP_PROTOCOLS.RDP" or str(proto) == "SUPP_PROTOCOLS.SSL" or str(proto) == "SUPP_PROTOCOLS.SSL|SUPP_PROTOCOLS.RDP":
+                    self.nla = False
+                    return
+            except:
+                pass
+
     async def connect_rdp(self, url):
-        rdpurl = RDPConnectionURL(url)
-        self.conn = rdpurl.get_connection(self.iosettings)
+        connectionfactory = RDPConnectionFactory.from_url(url, self.iosettings)
+        self.conn = connectionfactory.create_connection_newtarget(self.host, self.iosettings)
         _, err = await self.conn.connect()
         if err is not None:
             raise err
