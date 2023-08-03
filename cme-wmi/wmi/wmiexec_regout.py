@@ -11,17 +11,9 @@
 #   For more details, please check out my repository.
 #   https://github.com/XiaoliChan/wmiexec-RegOut
 
-import sys
-import argparse
 import time
-import logging
 import uuid
 import base64
-
-from impacket.dcerpc.v5.dcomrt import DCOMConnection, COMVERSION
-from impacket.dcerpc.v5.dcom import wmi
-from impacket.dcerpc.v5.dtypes import NULL
-from cme.helpers.logger import highlight
 
 OUTPUT_FILENAME = '__' + str(time.time())
 

@@ -28,22 +28,13 @@ CrackMapExec extension module/protocol support
 - xfreerdp binary: [link](https://github.com/FreeRDP/FreeRDP/wiki/PreBuilds)
 - wfreerdp binary: [link](https://ci.freerdp.com/job/freerdp-nightly-windows/arch=win64,label=vs2013/)
 
-- Sys env: ubuntu 22.04
+- Sys env: ubuntu 22.04 / kali
 ```
-git clone https://github.com/byt3bl33d3r/CrackMapExec.git
+git clone https://github.com/mpgn/CrackMapExec.git
 cd CrackMapExec
-echo "cchardet" >> requirements.txt
-change 'impacket==0.9.24' to 'impacket' (latest version)
-python3 -m venv cme-env
-source cme-env/bin/activate
-pip3 install -r requirements.txt
-cp cme/crackmapexec.py .
-python3 crackmapexec.py (make sure it can execute)
-
 git clone https://github.com/XiaoliChan/CrackMapExec-Extension.git
-cp -r CrackMapExec-Extension/cme-rdp/* cme/protocols/
-
-or
-
+cp -r CrackMapExec-Extension/cme-wmi/* cme/protocols/
 cp -r CrackMapExec-Extension/cme-xfreerdp/* cme/protocols/
+python3 -m pip install pipx
+pipx install .
 ```
