@@ -4,6 +4,7 @@ def proto_args(parser, std_parser, module_parser):
     wmi_parser = parser.add_parser('wmi', help="own stuff using WMI", parents=[std_parser, module_parser], conflict_handler='resolve')
     wmi_parser.add_argument("-H", '--hash', metavar="HASH", dest='hash', nargs='+', default=[], help='NTLM hash(es) or file(s) containing NTLM hashes')
     wmi_parser.add_argument("--port", default=135, type=int, metavar='PORT', help='WMI port (default: 135)')
+    wmi_parser.add_argument("--rpc-timeout", help="RPC connection timeout, default 2 secondes", type=int, default=2)
     no_smb_arg = wmi_parser.add_argument("--no-smb", action=get_conditional_action(_StoreTrueAction), make_required=[], help='No smb connection')
 
     # For domain options
@@ -17,7 +18,7 @@ def proto_args(parser, std_parser, module_parser):
     egroup.add_argument("--namespace", metavar='NAMESPACE', type=str, default='root\\cimv2', help='WMI Namespace (default: root\\cimv2)')
 
     cgroup = wmi_parser.add_argument_group("Command Execution", "Options for executing commands")
-    cgroup.add_argument("-x", metavar='EXECUTE', dest='execute', type=str, help='Creates a new powershell process and executes the specified command with output')
+    cgroup.add_argument("-x", metavar='COMMAND', dest='execute', type=str, help='Creates a new powershell process and executes the specified command with output')
     cgroup.add_argument("--interval-time", default=5 ,metavar='INTERVAL_TIME', dest='interval_time', type=int, help='Set interval time(seconds) when executing command, unrecommend set it lower than 5')
 
     return parser

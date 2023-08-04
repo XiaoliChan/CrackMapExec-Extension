@@ -1,23 +1,24 @@
 import os
-import uuid
 
 from datetime import datetime
 from cme.config import process_secret
 from cme.connection import *
 from cme.logger import CMEAdapter
-from cme.helpers.logger import highlight
 from cme.protocols.wmi.wmiexec_regout import WMIEXEC_REGOUT
-from impacket.dcerpc.v5.dcomrt import DCOMConnection
+
+from impacket.uuid import uuidtup_to_bin
+from impacket.dcerpc.v5 import transport, epm
+from impacket.dcerpc.v5.rpcrt import RPC_C_AUTHN_LEVEL_PKT_PRIVACY
+from impacket.dcerpc.v5.dcomrt import DCOMConnection, IRemoteSCMActivator
 from impacket.dcerpc.v5.dtypes import NULL
 from impacket.dcerpc.v5.dcom.wmi import CLSID_WbemLevel1Login, IID_IWbemLevel1Login, WBEM_FLAG_FORWARD_ONLY, IWbemLevel1Login
-from impacket.smbconnection import SMBConnection, SessionError
+from impacket.smbconnection import SMBConnection
 
-WMI_ERROR_STATUS = ['rpc_s_access_denied']
+MSRPC_UUID_PORTMAP = uuidtup_to_bin(('E1AF8308-5D1F-11C9-91A4-08002B14A0FA', '3.0'))
 
 class wmi(connection):
 
     def __init__(self, args, db, host):
-        #impacket only accept string type 'None'
         self.domain = None
         self.hash = ''
         self.lmhash = ''
@@ -45,13 +46,18 @@ class wmi(connection):
     
     def create_conn_obj(self):
         try:
-            dcom = DCOMConnection(self.host, username="user", password=str(uuid.uuid4()), domain="fake", lmhash="", nthash="", oxidResolver=True)
-            iInterface = dcom.CoCreateInstanceEx(CLSID_WbemLevel1Login, IID_IWbemLevel1Login)
-            dcom.disconnect()
+            rpctansport = transport.DCERPCTransportFactory(r'ncacn_ip_tcp:{0}[{1}]'.format(self.host, str(self.args.port)))
+            rpctansport.set_credentials(username="", password="", domain="", lmhash="", nthash="")
+            rpctansport.set_connect_timeout(int(self.args.rpc_timeout))
+            dce = rpctansport.get_dce_rpc()
+            dce.connect()
+            dce.bind(MSRPC_UUID_PORTMAP)
+            dce.disconnect()
         except Exception as e:
-            if "rpc_s_access_denied" in str(e):
-                return True
-        return False
+            return False
+        else:
+            self.conn = rpctansport
+            return True
 
     def enum_host_info(self):
         # smb no open, specify the domain
@@ -97,7 +103,7 @@ class wmi(connection):
         if self.args.no_smb:
             self.logger.extra['protocol'] = "WMI"
             self.logger.extra['port'] = self.args.port
-            self.logger.display(u"Connecting to WMI {}".format(self.hostname))
+            self.logger.display(u"Connecting to RPC: ncacn_ip_tcp:{}[{}]".format(self.host, self.args.port))
         else:
             self.logger.extra['protocol'] = "SMB"
             self.logger.extra['port'] = "445"
@@ -106,62 +112,108 @@ class wmi(connection):
                                                             self.domain))
             self.logger.extra['protocol'] = "WMI"
             self.logger.extra['port'] = self.args.port
-            self.logger.display(u"Connecting to WMI {}".format(self.hostname))
+            self.logger.display(u"Connecting to RPC: ncacn_ip_tcp:{}[{}]".format(self.host, self.args.port))
         return True
+    
+    def check_if_admin(self):
+        try:
+            dce = self.conn.get_dce_rpc()
+            dce.set_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
+            dce.connect()
+            scm = IRemoteSCMActivator(dce)
+        except:
+            dce.disconnect()
+            pass
+        else:
+            try:
+                iInterface = scm.RemoteCreateInstance(CLSID_WbemLevel1Login, IID_IWbemLevel1Login)
+            except Exception as e:
+                if "rpc_s_access_denied" in str(e):
+                    self.admin_privs = False
+                else:
+                    dce.disconnect()
+                    pass
+            else:
+                self.admin_privs = True
+            dce.disconnect()
+        return
 
     def plaintext_login(self, domain, username, password):
         self.password = password
         self.username = username
         self.domain = domain
         try:
-            dcom = DCOMConnection(self.host, self.username, self.password, self.domain, self.lmhash, self.nthash, oxidResolver=True)
-            iInterface = dcom.CoCreateInstanceEx(CLSID_WbemLevel1Login, IID_IWbemLevel1Login)
-            out = u'{}\\{}:{} {}'.format(domain,
-                                        self.username,
-                                        self.password,
-                                        highlight('({})'.format(self.config.get('CME', 'pwn3d_label'))))
-            self.logger.success(out)
-            dcom.disconnect()
-            if not self.args.continue_on_success:
-                return True
+            self.conn.set_credentials(username=self.username, password=self.password, domain=self.domain, lmhash=self.lmhash, nthash=self.nthash)
+            dce = self.conn.get_dce_rpc()
+            dce.set_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
+            dce.connect()
+            dce.bind(MSRPC_UUID_PORTMAP)
         except Exception as e:
-            self.logger.fail((f"{self.domain}\\{self.username}:{process_secret(self.password)} ({str(e)})"), color=("red" if "rpc_s_access_denied" in str(e) else "magenta"))
-            return False
-
+            dce.disconnect()
+            self.logger.fail(f"Got error while RPC login: {str(e)}")
+        else:
+            try:
+                # Get data from rpc connection if got vaild creds
+                entry_handle = epm.ept_lookup_handle_t()
+                request = epm.ept_lookup()
+                request['inquiry_type'] = 0x0
+                request['object'] = NULL
+                request['Ifid'] = NULL
+                request['vers_option'] = 0x1
+                request['entry_handle'] = entry_handle
+                request['max_ents'] = 1
+                resp = dce.request(request)
+            except  Exception as e:
+                dce.disconnect()
+                self.logger.fail((f"{self.domain}\\{self.username}:{process_secret(self.password)} ({str(e)})"), color=("red" if "rpc_s_access_denied" in str(e) else "magenta"))
+                return False
+            else:
+                self.check_if_admin()
+                out = f"{domain}\\{self.username}:{process_secret(self.password)} {self.mark_pwned()}"
+                self.logger.success(out)
+                return True
+    
     def hash_login(self, domain, username, ntlm_hash):
+        self.username = username
         lmhash = ''
         nthash = ''
-
         if ntlm_hash.find(':') != -1:
             lmhash, nthash = ntlm_hash.split(':')
         else:
             nthash = ntlm_hash
         try:
-            self.username = username
-            self.password = ''
-            self.domain = domain
-            self.hash = ntlm_hash
- 
-            if lmhash: self.lmhash = lmhash
-            if nthash: self.nthash = nthash
-
-            dcom = DCOMConnection(self.host, self.username, self.password, self.domain, self.lmhash, self.nthash, oxidResolver=False)
-            iInterface = dcom.CoCreateInstanceEx(CLSID_WbemLevel1Login, IID_IWbemLevel1Login)
-
-            out = u'{}\\{}:{} {}'.format(domain,
-                                         self.username,
-                                         ntlm_hash,
-                                         highlight('({})'.format(self.config.get('CME', 'pwn3d_label'))))
-
-            self.logger.success(out)
-            dcom.disconnect()
-            if not self.args.continue_on_success:
+            self.conn.set_credentials(username=self.username, password=self.password, domain=self.domain, lmhash=lmhash, nthash=nthash)
+            dce = self.conn.get_dce_rpc()
+            dce.set_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
+            dce.connect()
+            dce.bind(MSRPC_UUID_PORTMAP)
+        except Exception as e:
+            dce.disconnect()
+            self.logger.fail(f"Got error while RPC login: {str(e)}")
+        else:
+            try:
+                # Get data from rpc connection if got vaild creds
+                entry_handle = epm.ept_lookup_handle_t()
+                request = epm.ept_lookup()
+                request['inquiry_type'] = 0x0
+                request['object'] = NULL
+                request['Ifid'] = NULL
+                request['vers_option'] = 0x1
+                request['entry_handle'] = entry_handle
+                request['max_ents'] = 1
+                resp = dce.request(request)
+            except  Exception as e:
+                dce.disconnect()
+                self.logger.fail((f"{self.domain}\\{self.username}:{process_secret(nthash)} ({str(e)})"), color=("red" if "rpc_s_access_denied" in str(e) else "magenta"))
+                return False
+            else:
+                self.check_if_admin()
+                out = f"{domain}\\{self.username}:{process_secret(nthash)} {self.mark_pwned()}"
+                self.logger.success(out)
                 return True
 
-        except Exception as e:
-            self.logger.fail((f"{self.domain}\\{self.username}:{process_secret(self.nthash)} ({str(e)})"), color=("red" if "rpc_s_access_denied" in str(e) else "magenta"))
-            return False
-
+    # It's very complex to use wmi from rpctansport "convert" to dcom, so let we use dcom directly. 
+    @requires_admin
     def wmi_query(self):
         WQL = self.args.wmi_query
         if not WQL:
@@ -199,6 +251,7 @@ class wmi(connection):
             dcom.disconnect()
             return records
 
+    @requires_admin
     def execute(self):
         command = self.args.execute
         if not command:
