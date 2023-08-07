@@ -5,13 +5,11 @@ def proto_args(parser, std_parser, module_parser):
     wmi_parser.add_argument("-H", '--hash', metavar="HASH", dest='hash', nargs='+', default=[], help='NTLM hash(es) or file(s) containing NTLM hashes')
     wmi_parser.add_argument("--port", default=135, type=int, metavar='PORT', help='WMI port (default: 135)')
     wmi_parser.add_argument("--rpc-timeout", help="RPC connection timeout, default 2 secondes", type=int, default=2)
-    no_smb_arg = wmi_parser.add_argument("--no-smb", action=get_conditional_action(_StoreTrueAction), make_required=[], help='No smb connection')
-
+    
     # For domain options
     dgroup = wmi_parser.add_mutually_exclusive_group()
     domain_arg = dgroup.add_argument("-d", metavar="DOMAIN", dest='domain', default=None, type=str, help="Domain to authenticate to")
     dgroup.add_argument("--local-auth", action='store_true', help='Authenticate locally to each target')
-    no_smb_arg.make_required = [domain_arg]
 
     egroup = wmi_parser.add_argument_group("Mapping/Enumeration", "Options for Mapping/Enumerating")
     egroup.add_argument("-q", metavar='QUERY', dest='wmi_query',type=str, help='Issues the specified WMI query')
