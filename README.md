@@ -14,10 +14,6 @@ CrackMapExec extension module/protocol support
   Original from: [RDPassSpray.py](https://github.com/xFreed0m/RDPassSpray/blob/master/RDPassSpray.py)  
   ![image](https://user-images.githubusercontent.com/30458572/175292568-0d8472eb-7b61-4213-bd00-549f198f4676.png)
 
-- ### cme-rdp(Experimentally)  
-  Picked function from impacket rdp_check.py(bad coding currently).  
-  ![image](https://user-images.githubusercontent.com/30458572/172290058-4723e9bb-da60-4470-90a8-0e3fa15db5cf.png)
-
 - ### cme-wmi(Experimentally)  
   Forked from [Orange-Cyberdefense upstream](https://github.com/Orange-Cyberdefense/cme-wmi) , use impacket DCOM function instead of RPCRequester.  
   For more details: [XiaoliChan's Forked](https://github.com/XiaoliChan/CrackMapExec-WMI)  
