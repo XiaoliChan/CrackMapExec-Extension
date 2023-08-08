@@ -262,6 +262,7 @@ class wmi(connection):
             else:
                 self.doKerberos = True
                 self.check_if_admin()
+                dce.disconnect()
                 out = "{}\\{}{} {}".format(self.domain, username, used_ccache, self.mark_pwned())
                 self.logger.success(out)
                 return True
@@ -366,11 +367,11 @@ class wmi(connection):
     # It's very complex to use wmi from rpctansport "convert" to dcom, so let we use dcom directly. 
     @requires_admin
     def wmi_query(self):
+        results_WQL = "\r"
         WQL = self.args.wmi_query
         if not WQL:
             self.logger.fail("Missing WQL syntax in wmi query!")
             return False
-        self.logger.success('Executing WQL: {}'.format(WQL))
         try:
             dcom = DCOMConnection(self.conn.getRemoteName(), self.username, self.password, self.domain, self.lmhash, self.nthash, oxidResolver=True, doKerberos=self.doKerberos ,kdcHost=self.kdcHost, aesKey=self.aesKey)
             iInterface = dcom.CoCreateInstanceEx(CLSID_WbemLevel1Login,IID_IWbemLevel1Login)
@@ -383,24 +384,24 @@ class wmi(connection):
             iWbemServices.RemRelease()
             dcom.disconnect()
         else:
-            records = []
+            
             while True:
                 try:
                     wmi_results = iEnumWbemClassObject.Next(0xffffffff, 1)[0]
                     record = wmi_results.getProperties()
-                    records.append(record)
                     for k,v in record.items():
-                        self.logger.highlight('{} => {}'.format(k,v['value']))
-                    self.logger.highlight('')
+                        results_WQL += '{} => {}\r\n'.format(k,v['value'])
                 except Exception as e:
                     if str(e).find('S_FALSE') < 0:
                         raise e
                     else:
                         break
+
+            self.logger.success('Executing WQL: {}'.format(WQL))
+            self.logger.highlight(results_WQL.rstrip('\r\n'))
             iEnumWbemClassObject.RemRelease()
             iWbemServices.RemRelease()
             dcom.disconnect()
-            return records
 
     @requires_admin
     def execute(self):

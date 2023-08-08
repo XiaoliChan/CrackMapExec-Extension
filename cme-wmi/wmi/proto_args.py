@@ -5,7 +5,7 @@ def proto_args(parser, std_parser, module_parser):
     wmi_parser.add_argument("-H", '--hash', metavar="HASH", dest='hash', nargs='+', default=[], help='NTLM hash(es) or file(s) containing NTLM hashes')
     wmi_parser.add_argument("--port", default=135, type=int, metavar='PORT', help='WMI port (default: 135)')
     wmi_parser.add_argument("--rpc-timeout", help="RPC connection timeout, default 2 secondes", type=int, default=2)
-    
+
     # For domain options
     dgroup = wmi_parser.add_mutually_exclusive_group()
     domain_arg = dgroup.add_argument("-d", metavar="DOMAIN", dest='domain', default=None, type=str, help="Domain to authenticate to")
@@ -17,7 +17,7 @@ def proto_args(parser, std_parser, module_parser):
 
     cgroup = wmi_parser.add_argument_group("Command Execution", "Options for executing commands")
     cgroup.add_argument("-x", metavar='COMMAND', dest='execute', type=str, help='Creates a new powershell process and executes the specified command with output')
-    cgroup.add_argument("--interval-time", default=5 ,metavar='INTERVAL_TIME', dest='interval_time', type=int, help='Set interval time(seconds) when executing command, unrecommend set it lower than 5')
+    cgroup.add_argument("--interval-time", default=5 ,metavar='INTERVAL_TIME', dest='interval_time', type=int, help='Set interval time(seconds) when executing command between every stage, unrecommend set it lower than 5')
 
     return parser
 
