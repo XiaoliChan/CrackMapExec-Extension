@@ -59,29 +59,29 @@ class WMIEXEC_REGOUT:
         data = data + " > " + resultTXT
         command = self.__shell + self.encodeCommand(data)
         self.__win32Process.Create(command, self.__pwd, None)
-        self.logger.info("[+] Waiting {}s for command completely executed.".format(self.interval_time))
+        self.logger.info("Waiting {}s for command completely executed.".format(self.interval_time))
         time.sleep(self.interval_time)
         
         # Convert result to base64 strings
-        self.logger.info("[+] Save file to: " + resultTXT)
+        self.logger.info("Save file to: " + resultTXT)
         keyName = str(uuid.uuid4())
         data = """[convert]::ToBase64String((Get-Content -path %s -Encoding byte)) | set-content -path C:\\windows\\temp\\%s.txt -force | Out-Null"""%(resultTXT,keyName)
         command = self.__shell + self.encodeCommand(data)
         self.__win32Process.Create(command, self.__pwd, None)
-        self.logger.info("[+] Waiting {}s for command completely executed.".format(self.interval_time))
+        self.logger.info("Waiting {}s for command completely executed.".format(self.interval_time))
         time.sleep(self.interval_time)
         
         # Add base64 strings to registry
         registry_Path = "HKLM:\\Software\\Classes\\hello\\"
-        self.logger.info("[+] Adding base64 strings to registry, path: %s, keyname: %s"%(registry_Path,keyName))
+        self.logger.info("Adding base64 strings to registry, path: %s, keyname: %s"%(registry_Path,keyName))
         data = """New-Item %s -Force; New-ItemProperty -Path %s -Name %s -Value (get-content -path C:\\windows\\temp\\%s.txt) -PropertyType string -Force | Out-Null"""%(registry_Path,registry_Path,keyName,keyName)
         command = self.__shell + self.encodeCommand(data)
         self.__win32Process.Create(command, self.__pwd, None)
-        self.logger.info("[+] Waiting {}s for command completely executed.".format(self.interval_time))
+        self.logger.info("Waiting {}s for command completely executed.".format(self.interval_time))
         time.sleep(self.interval_time)
         
         # Remove temp file
-        self.logger.info("[+] Remove temporary files")
+        self.logger.info("Remove temporary files")
         data = ("del /q /f /s C:\\windows\\temp\\*")
         command = self.__shell + data
         self.__win32Process.Create(command, self.__pwd, None)
@@ -95,15 +95,15 @@ class WMIEXEC_REGOUT:
             descriptor, _ = self.iWbemServices.GetObject('StdRegProv')
             descriptor = descriptor.SpawnInstance()
             retVal = descriptor.GetStringValue(2147483650,'SOFTWARE\\classes\\hello', keyName)
-            self.logger.success(f"[+] Executed command: {self.command}")
+            self.logger.success(f"Executed command: {self.command}")
             result = base64.b64decode(retVal.sValue).decode('utf-16le').rstrip('\r\n')
             self.logger.highlight(result)
         except:
-            self.logger.highlight("Execute command failed, probabaly got detection by AV.")
+            self.logger.fail("Execute command failed, probabaly got detection by AV.")
             descriptor.RemRelease()
             self.iWbemServices.RemRelease()
         else:
-            self.logger.info("[+] Remove temporary registry Key")
+            self.logger.info("Remove temporary registry Key")
             retVal = descriptor.DeleteKey(2147483650,'SOFTWARE\\classes\\hello')
             descriptor.RemRelease()
             self.iWbemServices.RemRelease()
