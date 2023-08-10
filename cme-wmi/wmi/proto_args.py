@@ -17,8 +17,13 @@ def proto_args(parser, std_parser, module_parser):
 
     cgroup = wmi_parser.add_argument_group("Command Execution", "Options for executing commands")
     cgroup.add_argument("-x", metavar='COMMAND', dest='execute', type=str, help='Creates a new powershell process and executes the specified command with output')
-    cgroup.add_argument("--interval-time", default=5 ,metavar='INTERVAL_TIME', dest='interval_time', type=int, help='Set interval time(seconds) when executing command between every stage, unrecommend set it lower than 5')
-
+    cgroup.add_argument("--interval-time", default=5 ,metavar='INTERVAL_TIME', dest='interval_time', type=int, help='Set interval time(seconds) when executing command, unrecommend set it lower than 5')
+    cgroup.add_argument("--codec", default="utf-8",
+                            help="Set encoding used (codec) from the target's output (default "
+                                 "\"utf-8\"). If errors are detected, run chcp.com at the target, "
+                                 "map the result with "
+                                 "https://docs.python.org/3/library/codecs.html#standard-encodings and then execute "
+                                 "again with --codec and the corresponding codec")
     return parser
 
 def get_conditional_action(baseAction):

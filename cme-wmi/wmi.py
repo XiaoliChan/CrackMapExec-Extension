@@ -5,7 +5,7 @@ from datetime import datetime
 from cme.config import process_secret
 from cme.connection import *
 from cme.logger import CMEAdapter
-from cme.protocols.wmi.wmiexec_regout import WMIEXEC_REGOUT
+from cme.protocols.wmi.wmiexec_classout import WMIEXEC_CLASSOUT
 
 from impacket import ntlm
 from impacket.uuid import uuidtup_to_bin
@@ -409,17 +409,22 @@ class wmi(connection):
         if not command:
             self.logger.fail("Missing command in wmiexec!")
             return False
-        try:
-            dcom = DCOMConnection(self.conn.getRemoteName(), self.username, self.password, self.domain, self.lmhash, self.nthash, oxidResolver=True, doKerberos=self.doKerberos ,kdcHost=self.kdcHost, aesKey=self.aesKey)
-            iInterface = dcom.CoCreateInstanceEx(CLSID_WbemLevel1Login, IID_IWbemLevel1Login)
-            iWbemLevel1Login = IWbemLevel1Login(iInterface)
-            iWbemServices = iWbemLevel1Login.NTLMLogin('//./root/cimv2', NULL, NULL)
-            iWbemLevel1Login.RemRelease()
-            win32Process, _ = iWbemServices.GetObject('Win32_Process')
-            executor = WMIEXEC_REGOUT(win32Process, iWbemServices, self.host, self.logger, self.args.interval_time)
-            executor.execute_remote(command)
-            dcom.disconnect()
-        except Exception as e:
-            self.logger.fail('Execute command error: {}'.format(e))
-            iWbemServices.RemRelease()
-            dcom.disconnect()
+        
+        if self.server_os is not None and "NT 5" in self.server_os:
+            self.logger.fail("Not support current server os (version < NT 6)")
+        else:
+            try:
+                dcom = DCOMConnection(self.conn.getRemoteName(), self.username, self.password, self.domain, self.lmhash, self.nthash, oxidResolver=True, doKerberos=self.doKerberos ,kdcHost=self.kdcHost, aesKey=self.aesKey)
+                self.conn.disconnect()
+                iInterface = dcom.CoCreateInstanceEx(CLSID_WbemLevel1Login, IID_IWbemLevel1Login)
+                iWbemLevel1Login = IWbemLevel1Login(iInterface)
+                iWbemServices = iWbemLevel1Login.NTLMLogin('//./root/subscription', NULL, NULL)
+                iWbemLevel1Login.RemRelease()
+                executor = WMIEXEC_CLASSOUT(iWbemServices, self.logger, self.args.interval_time, self.args.codec)
+                executor.execute_command(command)
+                iWbemServices.RemRelease()
+                dcom.disconnect()
+            except Exception as e:
+                self.logger.fail('Execute command error: {}'.format(str(e)))
+                iWbemServices.RemRelease()
+                dcom.disconnect()
