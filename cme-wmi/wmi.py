@@ -1,11 +1,12 @@
 import os, struct, logging
 
+from io import StringIO
 from six import indexbytes
 from datetime import datetime
 from cme.config import process_secret
 from cme.connection import *
 from cme.logger import CMEAdapter
-from cme.protocols.wmi.wmiexec_classout import WMIEXEC_CLASSOUT
+from cme.protocols.wmi import wmiexec, wmiexec_event
 
 from impacket import ntlm
 from impacket.uuid import uuidtup_to_bin
@@ -29,6 +30,7 @@ class wmi(connection):
         self.remoteName = ''
         self.server_os = None
         self.doKerberos = False
+        self.stringBinding = None
         # From: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/18d8fbe8-a967-4f1c-ae50-99ca8e491d2d
         self.rpc_error_status = {
             "0000052F" : "STATUS_ACCOUNT_RESTRICTION",
@@ -72,7 +74,7 @@ class wmi(connection):
             rpctansport = transport.DCERPCTransportFactory(r'ncacn_ip_tcp:{0}[{1}]'.format(self.remoteName, str(self.args.port)))
             rpctansport.set_credentials(username="", password="", domain="", lmhash="", nthash="", aesKey="")
             rpctansport.setRemoteHost(self.host)
-            rpctansport.set_connect_timeout(int(self.args.rpc_timeout))
+            rpctansport.set_connect_timeout(self.args.rpc_timeout)
             dce = rpctansport.get_dce_rpc()
             dce.set_auth_type(RPC_C_AUTHN_WINNT)
             dce.connect()
@@ -114,9 +116,12 @@ class wmi(connection):
         packet['sec_trailer'] = sec_trailer
         packet['auth_data'] = auth
 
-        self.conn.connect()
-        self.conn.send(packet.get_packet())
-        buffer = self.conn.recv()
+        try:
+            self.conn.connect()
+            self.conn.send(packet.get_packet())
+            buffer = self.conn.recv()
+        except:
+            buffer = 0
 
         if buffer != 0:
             response = MSRPCHeader(buffer)
@@ -147,11 +152,12 @@ class wmi(connection):
                         self.server_os = "Windows NT %d.%d Build %d" % (indexbytes(version,0), indexbytes(version,1), struct.unpack('<H',version[2:4])[0])
         else:
             self.hostname = self.host
-            if not self.doamin:
-                self.domain = self.args.hostname
-            if self.args.domain:
-                self.domain = self.args.domain
-                self.fqdn = f"{self.hostname}.{self.domain}"
+
+        if self.args.local_auth:
+            self.domain = self.hostname
+        if self.args.domain:
+            self.domain = self.args.domain
+            self.fqdn = f"{self.hostname}.{self.domain}"
         
         self.logger.extra["hostname"] = self.hostname
 
@@ -169,23 +175,61 @@ class wmi(connection):
         try:
             dcom = DCOMConnection(self.conn.getRemoteName(), self.username, self.password, self.domain, self.lmhash, self.nthash, oxidResolver=True, doKerberos=self.doKerberos ,kdcHost=self.kdcHost, aesKey=self.aesKey)
             iInterface = dcom.CoCreateInstanceEx(CLSID_WbemLevel1Login, IID_IWbemLevel1Login)
-            iWbemLevel1Login = IWbemLevel1Login(iInterface)
-            iWbemServices = iWbemLevel1Login.NTLMLogin('//./root/cimv2', NULL, NULL)
+            self.firewall_check(iInterface, self.args.rpc_timeout)
         except Exception as e:
             try:
                 dcom.disconnect()
             except:
                 pass
 
-            if "access_denied" in str(e).lower():
-                self.admin_privs = False
-            else:
+            if str(e).lower().find("connect") > 0:
+                self.logger.fail(f'Check admin error: dcom initialization failed with stringbinding: "{self.stringBinding}", please try "--rpc-timeout" option. (probably is admin)')
+            elif str(e).find("access_denied") > 0:
                 pass
+            else:
+                self.logger.fail(str(e))
         else:
-            dcom.disconnect()
-            self.logger.extra['protocol'] = "WMI"
-            self.admin_privs = True
+            try:
+                iWbemLevel1Login = IWbemLevel1Login(iInterface)
+                iWbemServices = iWbemLevel1Login.NTLMLogin('//./root/cimv2', NULL, NULL)
+            except Exception as e:
+                try:
+                    dcom.disconnect()
+                except:
+                    pass
+
+                if str(e).find("access_denied") > 0:
+                    pass
+                else:
+                    self.logger.fail(str(e))
+            else:
+                dcom.disconnect()
+                self.logger.extra['protocol'] = "WMI"
+                self.admin_privs = True
         return
+
+    def firewall_check(self, iInterface ,timeout):
+        stringBindings = iInterface.get_cinstance().get_string_bindings()
+        for strBinding in stringBindings:
+            if strBinding['wTowerId'] == 7:
+                if strBinding['aNetworkAddr'].find('[') >= 0:
+                    binding, _, bindingPort = strBinding['aNetworkAddr'].partition('[')
+                    bindingPort = '[' + bindingPort
+                else:
+                    binding = strBinding['aNetworkAddr']
+                    bindingPort = ''
+
+                if binding.upper().find(iInterface.get_target().upper()) >= 0:
+                    stringBinding = 'ncacn_ip_tcp:' + strBinding['aNetworkAddr'][:-1]
+                    break
+                elif iInterface.is_fqdn() and binding.upper().find(iInterface.get_target().upper().partition('.')[0]) >= 0:
+                    stringBinding = 'ncacn_ip_tcp:%s%s' % (iInterface.get_target(), bindingPort)
+
+        self.stringBinding = stringBinding
+        rpctransport = transport.DCERPCTransportFactory(stringBinding)
+        rpctransport.set_connect_timeout(timeout)
+        rpctransport.connect()
+        rpctransport.disconnect()
 
     def kerberos_login(self, domain, username, password="", ntlm_hash="", aesKey="", kdcHost="", useCache=False):
         logging.getLogger("impacket").disabled = True
@@ -368,23 +412,20 @@ class wmi(connection):
     @requires_admin
     def wmi_query(self):
         results_WQL = "\r"
-        WQL = self.args.wmi_query
-        if not WQL:
-            self.logger.fail("Missing WQL syntax in wmi query!")
-            return False
+        WQL = self.args.wmi_query.strip('\n')
         try:
             dcom = DCOMConnection(self.conn.getRemoteName(), self.username, self.password, self.domain, self.lmhash, self.nthash, oxidResolver=True, doKerberos=self.doKerberos ,kdcHost=self.kdcHost, aesKey=self.aesKey)
             iInterface = dcom.CoCreateInstanceEx(CLSID_WbemLevel1Login,IID_IWbemLevel1Login)
             iWbemLevel1Login = IWbemLevel1Login(iInterface)
             iWbemServices= iWbemLevel1Login.NTLMLogin(self.args.namespace , NULL, NULL)
             iWbemLevel1Login.RemRelease()
-            iEnumWbemClassObject = iWbemServices.ExecQuery(WQL.strip('\n'))
+            iEnumWbemClassObject = iWbemServices.ExecQuery(WQL)
         except Exception as e:
             self.logger.fail('Execute WQL error: {}'.format(e))
             iWbemServices.RemRelease()
             dcom.disconnect()
         else:
-            
+            self.logger.info(f"Executing WQL syntax: {WQL}")
             while True:
                 try:
                     wmi_results = iEnumWbemClassObject.Next(0xffffffff, 1)[0]
@@ -396,35 +437,62 @@ class wmi(connection):
                         raise e
                     else:
                         break
+            try:
+                iEnumWbemClassObject.RemRelease()
+                iWbemServices.RemRelease()
+                dcom.disconnect()
+            except:
+                pass
 
-            self.logger.success('Executing WQL: {}'.format(WQL))
-            self.logger.highlight(results_WQL.rstrip('\r\n'))
-            iEnumWbemClassObject.RemRelease()
-            iWbemServices.RemRelease()
-            dcom.disconnect()
+            self.logger.success('Executed WQL: {}'.format(WQL))
+            buf = StringIO(results_WQL.rstrip('\r\n')).readlines()
+            for line in buf:
+                self.logger.highlight(line.strip())   
 
     @requires_admin
-    def execute(self):
+    def execute(self, get_output=False):
+        output = ""
         command = self.args.execute
-        if not command:
-            self.logger.fail("Missing command in wmiexec!")
+
+        if not self.args.no_output:
+            get_output = True
+
+        if "systeminfo" in command and self.args.interval_time < 10:
+            self.logger.fail("Execute 'systeminfo' must set the interval time higher than 10 seconds")
             return False
         
         if self.server_os is not None and "NT 5" in self.server_os:
             self.logger.fail("Not support current server os (version < NT 6)")
-        else:
+            return False
+
+        if self.args.exec_method == "wmiexec":
             try:
-                dcom = DCOMConnection(self.conn.getRemoteName(), self.username, self.password, self.domain, self.lmhash, self.nthash, oxidResolver=True, doKerberos=self.doKerberos ,kdcHost=self.kdcHost, aesKey=self.aesKey)
-                self.conn.disconnect()
-                iInterface = dcom.CoCreateInstanceEx(CLSID_WbemLevel1Login, IID_IWbemLevel1Login)
-                iWbemLevel1Login = IWbemLevel1Login(iInterface)
-                iWbemServices = iWbemLevel1Login.NTLMLogin('//./root/subscription', NULL, NULL)
-                iWbemLevel1Login.RemRelease()
-                executor = WMIEXEC_CLASSOUT(iWbemServices, self.logger, self.args.interval_time, self.args.codec)
-                executor.execute_command(command)
-                iWbemServices.RemRelease()
-                dcom.disconnect()
+                exec_method = wmiexec.WMIEXEC(self.conn.getRemoteName(), self.username, self.password, self.domain, self.lmhash, self.nthash, self.doKerberos, self.kdcHost, self.aesKey, self.logger, self.args.interval_time, self.args.codec)
+                output = exec_method.execute(command, get_output)
             except Exception as e:
+                try:
+                    exec_method._WMIEXEC__dcom.disconnect()
+                except:
+                    pass
                 self.logger.fail('Execute command error: {}'.format(str(e)))
-                iWbemServices.RemRelease()
-                dcom.disconnect()
+            self.conn.disconnect()
+        elif self.args.exec_method == "wmiexec-event":
+            try:
+                exec_method = wmiexec_event.WMIEXEC_EVENT(self.conn.getRemoteName(), self.username, self.password, self.domain, self.lmhash, self.nthash, self.doKerberos, self.kdcHost, self.aesKey, self.logger, self.args.interval_time, self.args.codec)
+                output = exec_method.execute(command, get_output)
+            except Exception as e:
+                try:
+                    exec_method._WMIEXEC_EVENT__dcom.disconnect()
+                except:
+                    pass
+                self.logger.fail('Execute command error: {}'.format(str(e)))
+            self.conn.disconnect()
+        
+        if self.args.execute:
+            if output == "" and get_output:
+                self.logger.fail("Execute command failed, probabaly got detection by AV.")
+            else:
+                self.logger.success(f'Executed command: "{command}" via {self.args.exec_method}')
+                buf = StringIO(output).readlines()
+                for line in buf:
+                    self.logger.highlight(line.strip())
