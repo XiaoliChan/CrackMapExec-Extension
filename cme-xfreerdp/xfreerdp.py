@@ -16,7 +16,7 @@ status_dict = {
     'Account has been locked':['ERRCONNECT_ACCOUNT_LOCKED_OUT'],
     'Account has been disabled':['ERRCONNECT_ACCOUNT_DISABLED [0x00020012]'],
     'Account was expired':['0x0002000D','0x00000009'],
-    'Failed to connect to server':['0x0002000C'],
+    'Not support NLA':['ERRCONNECT_SECURITY_NEGO_CONNECT_FAILED [0x0002000C]'],
     'Password expired':['0x0002000E','0x0002000F','0x00020013'],
     'RDP login failed':['0x00020009','0x00020014'],
     'Failed':['Resource temporarily unavailable', 'Broken pipe', 'ERRCONNECT_CONNECT_FAILED [0x00020006]']
@@ -48,7 +48,7 @@ class xfreerdp(connection):
 
     def create_conn_obj(self):
         try:
-            connection = subprocess.Popen(f'xfreerdp /v:"{self.host}" /port:{self.args.port} +auth-only /d:"aa" /u:"aa" /p:"aa" /sec:nla /cert-ignore /tls-seclevel:0 /timeout:{self.args.rdp_timeout * 1000}', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+            connection = subprocess.Popen(f'xfreerdp /v:"{self.host}" /port:{self.args.port} +auth-only /d:"aa" /u:"aa" /p:"aa" /cert-ignore /tls-seclevel:0 /timeout:{self.args.rdp_timeout * 1000}', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             output_error = connection.stderr.read()
             output_info = connection.stdout.read()
             if any(single_word in output_error.decode('utf-8') for single_word in status_dict['Failed']):
@@ -63,7 +63,7 @@ class xfreerdp(connection):
     
     def plaintext_login(self, domain, username, password):
         try:
-            connection = subprocess.Popen(f'xfreerdp /v:"{self.host}" /port:{self.args.port} +auth-only /d:"{domain}" /u:"{username}" /p:"{password}" /sec:nla /cert-ignore /tls-seclevel:0 /timeout:{self.args.rdp_timeout * 1000}', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+            connection = subprocess.Popen(f'xfreerdp /v:"{self.host}" /port:{self.args.port} +auth-only /d:"{domain}" /u:"{username}" /p:"{password}" /cert-ignore /tls-seclevel:0 /timeout:{self.args.rdp_timeout * 1000}', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             output_error = connection.stderr.read()
             output_info = connection.stdout.read()
             if success_login_yes_rdp in output_error.decode('utf-8'):
