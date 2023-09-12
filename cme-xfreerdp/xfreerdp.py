@@ -17,7 +17,7 @@ status_dict = {
     '(Not support NLA)':['ERRCONNECT_SECURITY_NEGO_CONNECT_FAILED [0x0002000C]'],
     '(Password expired)':['0x0002000E','0x0002000F','0x00020013'],
     '(RDP login failed)':['0x00020009','0x00020014'],
-    'Failed':['Resource temporarily unavailable', 'Broken pipe', 'ERRCONNECT_CONNECT_FAILED [0x00020006]', 'Connection timed out']
+    'Failed':['Resource temporarily unavailable', 'Broken pipe', 'ERRCONNECT_CONNECT_FAILED [0x00020006]', 'Connection timed out', 'Connection reset by peer']
 }
 
 class xfreerdp(connection):
